@@ -1,0 +1,312 @@
+name: v12_inv
+model_type: FR3D_Inv_v10_Model #
+num_gpu: auto  # use 1 GPU
+manual_seed: 0
+
+datasets:
+  train:
+    name: FFHQ_7w
+    type: FFHQ_Inv_v10_Dataset
+    dataroot_gt: datasets/final_crops
+    origin_gt_root: datasets/ffhq_7w_512_cleaned
+    eg3d_gt: datasets/eg3d_gen_balanced_consistant_pose_100k/imgs_512
+    eg3d_origin_gt: datasets/eg3d_gen_balanced_consistant_pose_100k/imgs_512_aligned # eg3d-generated img aligned to origin
+    ws_gt: datasets/ffhq_labels/ws.json
+    camera_params_gt: datasets/ffhq_labels/camera_params.json
+    camera_params_eg3d_gt: datasets/eg3d_gen_balanced_consistant_pose_100k/c_balance_pose_100000_0.8_1.2.json
+    crop_params_path: datasets/ffhq_crop_params.json
+    eg3d_gen_crop_params_path: datasets/eg3d_gen_crop_params.json
+    io_backend:
+      type: disk
+    
+    use_hflip: true
+    mean: [0.5, 0.5, 0.5]
+    std: [0.5, 0.5, 0.5]
+    out_size: 512
+
+    blur_kernel_size: 41
+    blur_kernel_list: ['iso', 'aniso']
+    blur_kernel_prob: [0.5, 0.5]
+    blur_sigma: [0.1, 20]
+    motion_blur_kernel_sizes: [21, 25, 31, 35, 41, 45, 51, 61, 71]
+    downsample_range: [4, 16]
+    noise_range: [10, 50]
+    jpeg_range: [50, 100]
+
+    second_deg_prob: 0.8
+    blur_kernel_size2: 41
+    blur_kernel_list2: ['iso', 'aniso']
+    blur_kernel_prob2: [0.5, 0.5]
+    blur_sigma2: [0.1, 10] # 10
+    downsample_range2: [2, 8] # 2
+    noise_range2: [0, 15] # 20
+    jpeg_range2: [50, 100]
+
+    # color jitter and gray
+    color_jitter_prob: 0
+    color_jitter_shift: 0
+    color_jitter_pt_prob: 0
+    gray_prob: 0.01 # 0.9 - 0.5
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 12
+    batch_size_per_gpu: 4
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  val:
+    name: validation
+    type: FFHQInvV10PairedImageDataset
+    # dataroot_lq: datasets/CelebAHQ_test_lq_dualdeg_512_32
+    dataroot_lq: datasets/CelebAHQ_test_balanced_pose_v2/lq_512
+    dataroot_lq_256: datasets/CelebAHQ_test_balanced_pose_v2/lq_aligned_256
+    # dataroot_lq: datasets/validation/input_tiny
+    dataroot_gt: datasets/CelebAHQ_test_balanced_pose/imgs_512
+    # dataroot_gt: datasets/validation/reference_tiny
+    crop_params_path: datasets/celeba_crop_params.json
+    batch_size_val_test: 1
+    io_backend:
+      type: disk
+    mean: [0.5, 0.5, 0.5]
+    std: [0.5, 0.5, 0.5]
+    scale: 1
+
+network_g:
+  type: FR3D_Inv_v12_Arch
+  out_size: 512
+  sr_in_size: 128
+  sr_in_channels: 32
+  num_style_feat: 512
+  channel_multiplier: 1
+  resample_kernel: [1, 3, 3, 1]
+  encoder_3d_opt_path: options/encoder_3d_opts.yaml
+  encoder_3d_config_path: options/encoder_3d_config.yaml
+
+  sr_decoder_load_path: experiments/pretrained_models/StyleGAN2_512_Cmul1_FFHQ_B12G4_scratch_800k.pth
+  encoder_load_path: experiments/pretrained_models/pretrained_encoder_v27.pth
+  final_conv_load_path: experiments/pretrained_models/final_conv_v27.pth
+  final_linear_load_path: experiments/pretrained_models/final_linear_v27.pth
+  angle_linear_load_path: experiments/pretrained_models/angle_linear_v27.pth
+  fix_eg3d_decoder: true
+  fix_sr_decoder: true
+  num_mlp: 8
+  lr_mlp: 0.01
+  input_is_latent: true
+  different_w: false
+  narrow: 1
+  sft_half: true
+
+network_d:
+  type: DualDiscriminator
+  out_size: 512
+  channel_multiplier: 1
+  resample_kernel: [1, 3, 3, 1]
+
+network_d_2d_decoder_256_16:
+  type: StyleGAN2DiscriminatorList
+  out_size: [16, 32, 64, 128, 256]
+  channel_multiplier: 1
+  resample_kernel: [1, 3, 3, 1]
+
+network_identity:
+  type: ResNetArcFace
+  block: IRBlock
+  layers: [2, 2, 2, 2]
+  use_se: False
+
+network_structure:
+  type: ArcFaceFeatureExtractor
+  block: IRBlock
+  layers: [2, 2, 2, 2]
+  use_se: False
+
+path:
+  pretrain_network_g: ~
+  param_key_g: G_ema
+  strict_load_g: ~
+  pretrain_network_d: ~
+  pretrain_network_d_ws: ~
+  pretrain_network_d_left_eye: ~
+  pretrain_network_d_right_eye: ~
+  pretrain_network_d_mouth: ~
+  resume_state: ~
+  pretrain_network_identity: experiments/pretrained_models/arcface_resnet18.pth
+  pretrain_network_structure: experiments/pretrained_models/arcface_resnet18.pth
+  resume_state: ~
+  ignore_resume_networks: ['network_identity', 'network_structure']
+
+
+train:
+  # use AdamW for better result without fairness comparison
+  optim_g:
+    type: Adam
+    lr: !!float 2e-3
+  optim_d:
+    type: Adam
+    lr: !!float 2e-3
+  optim_component:
+    type: Adam
+    lr: !!float 2e-3
+  optim_d_2d_decoder_list:
+    type: Adam
+    lr: !!float 2e-3
+
+  optim_3d:
+    type: Adam
+    lr: !!float 1e-4
+
+  scheduler:
+    type: MultiStepLR
+    milestones: [200000, 300000, 400000]
+    gamma: 0.5
+
+  total_iter: 500000
+  warmup_iter: -1  # no warm up
+  unfreeze_eg3d: 30000 # 300000
+  save_training_results_interval: 10000
+
+  # losses
+  # pixel loss
+  pixel_opt:
+    type: L1Loss
+    loss_weight: !!float 5e-2 # 1e-1
+    reduction: mean
+  # lr pixel loss
+  pixel_lr_opt:
+    type: L1Loss
+    loss_weight: !!float 2
+    reduction: mean
+  pixel_lr_opt_start_iter: 0
+  # L1 loss used in pyramid loss, component style loss and identity loss
+  L1_opt:
+    type: L1Loss
+    loss_weight: 1
+    reduction: mean
+  # identity loss
+  identity_weight: 10
+  identity_start_iter: 0
+  # image pyramid loss
+  pyramid_loss_weight: 1
+  # remove_pyramid_loss: 300000
+
+  # perceptual loss (content and style losses)
+  perceptual_opt:
+    type: PerceptualLoss
+    layer_weights:
+      # before relu
+      'conv1_2': 0.1
+      'conv2_2': 0.1
+      'conv3_4': 1
+      'conv4_4': 1
+      'conv5_4': 1
+    vgg_type: vgg19
+    use_input_norm: true
+    perceptual_weight: !!float 0.5
+    style_weight: 10
+    range_norm: true
+    criterion: l1
+  cri_perceptual_start_iter: 0
+
+  perceptual_opt_lr:
+    type: PerceptualLoss
+    layer_weights:
+      # before relu
+      'conv1_2': 0.1
+      'conv2_2': 0.1
+      'conv3_4': 1
+      'conv4_4': 1
+      'conv5_4': 1
+    vgg_type: vgg19
+    use_input_norm: true
+    perceptual_weight: !!float 0.1
+    style_weight: !!float 1
+    range_norm: true
+    criterion: l1
+  cri_perceptual_lr_start_iter: 0
+  
+  face_structure_opt:
+    type: FaceStructureLoss
+    layer_weights:
+      # before relu
+      'layer1': 0.1
+      'layer2': 0.1
+      'layer3': 1
+      'layer4': 1
+      # 'fc5': 1
+    use_input_norm: true
+    perceptual_weight: !!float 10
+    style_weight: !!float 10
+    range_norm: true
+    criterion: l1
+
+  # gan loss
+  gan_opt:
+    type: GANLoss
+    gan_type: wgan_softplus
+    loss_weight: !!float 1e-1
+
+  # camera params loss
+  camera_params_opt:
+    type: CharbonnierLoss # robust L1 loss
+    loss_weight: !!float 10.0
+
+  # difficulty loss
+  diff_opt:
+    type: CharbonnierLoss
+    loss_weight: !!float 1
+
+  # r1 regularization for discriminator
+  r1_reg_weight: 10
+
+  # facial component loss
+  gan_component_opt:
+    type: GANLoss
+    gan_type: vanilla
+    real_label_val: 1.0
+    fake_label_val: 0.0
+    loss_weight: !!float 1
+  comp_style_weight: 200
+  comp_mouth_weight: 1
+  comp_eye_weight: 1
+
+  # discriminator setup
+  net_d_iters: 1
+  net_d_init_iters: 0
+  net_d_reg_every: 16
+
+# validation settings
+val:
+  val_freq: !!float 5000
+  save_img: true
+  save_lr_img: true
+  return_generate_rows_images: ['181611', '181619', '181624', '200850', '200205']
+
+  metrics:
+    psnr: # metric name
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    fid:
+      better: lower
+      num_sample: 3000 # nums of the validation imgs
+      fid_stats: 'fr3d/metrics/inception_CelebAHQ_test_512.pth'
+    lpips:
+      better: lower
+      place_holder: ~ # useless but necessary
+
+# logging settings
+logger:
+  print_freq: 100
+  save_checkpoint_freq: !!float 5000
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500
+
+find_unused_parameters: true
