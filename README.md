@@ -12,9 +12,9 @@ FREx(Face Restoration under Extreme conditions) aims at incorporating 3D structu
 - basicsr == 1.3.5
 
 ## Model Weights
-- pretrained_weights: [baidu drive](https://pan.baidu.com/s/1mZtJ_LXBW4J64F59RfMM_w?pwd=srts)
+- Pretrained_weights: [baidu drive](https://pan.baidu.com/s/1mZtJ_LXBW4J64F59RfMM_w?pwd=srts)
 - FREx: [baidu drive](https://pan.baidu.com/s/1Sae37KA97fIchyqJYZS3Og?pwd=jnuh)
-- dataset: [baidu drive](https://pan.baidu.com/s/1QVUO2O0uf7jzVE4cIvUf7g?pwd=6ct6)
+- Testing dataset: [baidu drive](https://pan.baidu.com/s/1QVUO2O0uf7jzVE4cIvUf7g?pwd=6ct6)
 
 ## Inference
 ```
@@ -27,6 +27,11 @@ python3 fr3d/inference.py
 --opt ./options/inv_v12.yml 
 --crop_param_path ./datasets/celeba_crop_params.json
 ```
+
+If you have any questions, feel free to contact zhengrchan@gmail.com
+
+
+
 
 
 
